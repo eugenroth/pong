@@ -1,0 +1,338 @@
+<!-- 
+/* OPTIMIZATIONS */
+[x] Computer-Paddle vom Rand entfernen
+[x] Play win sound when game is won -> verworfen da dämlich
+[x] Play loose sound when game is lost -> verworfen da dämlich
+[ ] Schwierigkeitsgrad per Button setzen
+[ ] Höhe des Winning-Score per Button setzen
+[ ] Umstellung auf Full-Screen
+[ ] Optimierung für mobile Endgeräte
+[x] Countdown einbauen (3 Sekunden), bevor Spiel beginnt
+[ ] Schatten auf Ball legen um 3D-Effekt zu erzielen
+[x] Ball soll Horizontale Begrenzung nicht überschreiten
+[x] Steuerung des UserPaddles soll über gesamten Bildschirm möglich sein
+[x] Click auf gesamten Viewport soll neues Spiel starten
+[ ] UserPaddle soll im Canvas sichtbar bleiben, auch wenn Mausposition außerhalb ist
+
+/* BUGS */
+[x] Durch mehrmaliges Drücken der Space-Taste erhöht sich Spielgeschwindigkeit
+[x] Bug: nach spielende wird score weiter hochgezählt
+
+ -->
+
+<html>
+<head>
+	<meta charset="UTF-8">
+	<title>PONG | Remastered</title>
+	<link rel="icon" href="pong.png" type="image" />
+	<link type="text/css" rel="stylesheet" href="style.css"></link>
+	<link type="text/css" rel="stylesheet" href="switches.css"></link>
+	<link href="https://fonts.googleapis.com/css?family=Bungee+Shade" rel="stylesheet">
+</head>
+
+<body>
+	<div class="title"><p>PONG</p></div>
+	<p class="gameinfo">
+		<span>use<span class="hlight"> MOUSE</span> to navigate | </span><span class="hlight">ESC</span> to restart | <span class="hlight">X</span> to toggle music<br/><br/>
+	</p>
+
+	<!-- 	
+	<span class="switchtext">Music
+		<label id="musicSwitch" class="switch">
+	  		<input type="checkbox">
+	  		<div class="slider round" onclick="toggleSwitch()"></div>
+		</label>
+	</span> 
+	-->
+
+	<audio id="audio" src="air.mp3"></audio>
+	
+	<!-- Toggle für Schwierigkeitsgrad -->
+	<ul>
+	  <li><input id="easy" onclick="setLevel(this.value)" type="radio" name="gender" value="1" checked> Easy</li>
+	  <li><input id="intermediate" onclick="setLevel(this.value)" type="radio" name="gender" value="2"> Intermediate</li>
+	  <li><input id="hard" onclick="setLevel(this.value)" type="radio" name="gender" value="3"> Hard</li>
+	</ul>
+	<!-- //Toggle für Schwierigkeitsgrad -->
+
+	<p class="countdown" id="countdown">Press <span class="hlight">SPACE</span> to start</p>
+	<div class="content">
+	<canvas id="gameCanvas" width="800" height="600"></canvas>
+	<script>
+
+	var difficulty = 1;
+
+	var viewPort;
+	var counter = 3;
+	var intervalId;
+	var music = "on";
+	var canvas;
+	var canvasContext;
+	var font = "50px ARCADE";
+	var ballX = 150;
+	var ballY = 150;
+	var ballSpeedX = 10;
+	var ballSpeedY = 5;
+	var ballRadius = 10;
+
+	var userScore = 0;
+	var computerScore = 0;
+
+	var showingWinScreen = false;
+	var gameRunning = false;
+
+	var userPaddle = 250;
+	var computerPaddle = 250;
+
+	var backgroundMusic = document.getElementById('audio');
+	backgroundMusic.currentTime = 24.5;
+	var blip = new Audio('blip.mp3');
+	blip.volume = 0.2;
+	var blop = new Audio('blop.mp3');
+	blop.volume = 0.6;
+
+	const WINNING_SCORE = 5;
+	const PADDLE_HEIGHT = 100;
+	const PADDLE_THICKNESS = 10;
+	const PADDLE_PADDING = 30;
+
+	// function toggleSwitch(){
+	// 	if(music == "off"){
+	// 		music = "on";
+	// 		console.log(music);
+	// 	}else{
+	// 		music = "off";
+	// 		console.log(music);
+	// 	}
+	// }
+
+	function setLevel(level){
+		difficulty = level;
+		if(difficulty == 3){
+			ballSpeedX = 25;
+			ballSpeedY = 15;
+		}
+		else if(difficulty == 2){
+			ballSpeedX = 15;
+			ballSpeedY = 10;
+		}
+		else if(difficulty == 1){
+			return;
+		}
+		console.log("Difficulty level: " + difficulty);
+	}
+
+	function playSong() {
+		if(music == "on"){
+			backgroundMusic.play();
+		}else{
+			return;
+		}
+	}
+
+	window.addEventListener('keydown', function(e){
+		//Keycodes from keycode.info
+		//Press SPACE-Bar to start Game
+		if(e.keyCode == 32 && !gameRunning){
+			//Countdown for the game to begin
+			document.getElementById('countdown').innerHTML = counter;
+			intervalId = setInterval(function(){
+				counter--;
+				document.getElementById('countdown').innerHTML = counter;
+				if(counter < 1){
+					clearInterval(intervalId);
+					counter = 3;
+					document.getElementById('countdown').innerHTML = 'Go!';
+				    
+				    setTimeout(function(){
+				    	start();
+				    	playSong();
+				    }, 1000);
+					return;
+				}
+			},1000);
+		}		
+
+		//Press Esc-Key (keycode 27) to restart during a running game
+		if(e.keyCode == 27){
+			userScore = 0;
+			computerScore = 0;
+			showingWinScreen = false;
+			ballReset();
+		}
+		//Press X-Key (keycode 88) to toggle music
+		if(e.keyCode == 88){
+			if(backgroundMusic.paused == true){
+				backgroundMusic.play();
+			}else{
+				backgroundMusic.pause();
+			}
+		}
+	});
+
+	function calculateMousePosition(evt) {
+		var rect = canvas.getBoundingClientRect();
+		var root = document.documentElement;
+		var mouseX = evt.clientX - rect.left - root.scrollLeft;
+		var mouseY = evt.clientY - rect.top - root.scrollTop;
+		return{
+			x:mouseX,
+			y:mouseY
+		};
+	}
+
+	function handleMouseClick(evt){
+		if(showingWinScreen){
+			userScore = 0;
+			computerScore = 0;
+			showingWinScreen = false;
+		}
+	}
+
+	function start() {
+		//set variable "game is running to true"
+		gameRunning = true;
+		viewPort = document.documentElement;
+		canvas = document.getElementById('gameCanvas');
+		canvasContext = canvas.getContext('2d');
+
+		var fps = 40;
+		setInterval(function(){
+			moveEverything();
+			drawEverything();
+		}, 1000/fps);
+
+		viewPort.addEventListener('mousedown', handleMouseClick);
+		viewPort.addEventListener('mousemove', function(evt){
+			var mousePos = calculateMousePosition(evt);
+			userPaddle = mousePos.y - (PADDLE_HEIGHT/2);
+		});
+	}
+
+	function ballReset(){
+		if(userScore == WINNING_SCORE){
+			showingWinScreen = true;
+		}
+		if(computerScore == WINNING_SCORE){
+			showingWinScreen = true;
+		}
+		ballSpeedX = -ballSpeedX;
+		ballX = canvas.width/2;
+		ballY = canvas.height/2;
+	}
+
+	function computerMovement() {
+		var computerPaddleCenter = computerPaddle + (PADDLE_HEIGHT/2);
+		if(computerPaddleCenter < ballY-35){
+			computerPaddle += 6;
+		}else if(computerPaddleCenter > ballY+35){
+			computerPaddle -= 6;
+		}
+	}
+
+	function moveEverything(){
+		if(showingWinScreen){
+			return;
+		}
+		computerMovement();
+
+		ballX += ballSpeedX;
+		ballY += ballSpeedY;
+
+		//if ball hits userPaddle
+		if(ballX == PADDLE_PADDING+PADDLE_THICKNESS*2) {
+			if(ballY > userPaddle && ballY < userPaddle+PADDLE_HEIGHT){
+				blip.play();
+				ballSpeedX = -ballSpeedX;			
+				var deltaY = ballY - (userPaddle+PADDLE_HEIGHT/2);
+				ballSpeedY = deltaY * 0.35;
+			}
+		}
+
+		//if ball misses userPaddle
+		if(ballX == 0){
+			//must be BEFORE ballReset()
+			computerScore++; 
+			ballReset();
+		}
+		
+		//if ball hits computerPaddle
+		if(ballX > canvas.width-PADDLE_PADDING-PADDLE_THICKNESS*2) {
+			if(ballY > computerPaddle && ballY < computerPaddle+PADDLE_HEIGHT){
+				blop.play();
+				ballSpeedX = -ballSpeedX;
+				var deltaY = ballY - (computerPaddle+PADDLE_HEIGHT/2);
+				ballSpeedY = deltaY * 0.35;
+			}
+		}
+
+		//if ball misses computerPaddle
+		if(ballX == canvas.width){
+			//must be BEFORE ballReset()
+			userScore++; 
+			ballReset();
+		}
+
+		if(ballY > canvas.height-ballRadius) {
+			ballSpeedY = -ballSpeedY;
+		}
+
+		if(ballY < ballRadius) {
+			ballSpeedY = -ballSpeedY;
+		}
+	}
+
+	function drawNet() {
+		for(var i = 0; i < canvas.height; i += 40) {
+			colorRect(canvas.width/2-1, i, 2, 20, 'white');
+			//colorRect(x, y, width, height, color);
+		}
+	}
+
+	function drawEverything(){
+		// drawing black playing field
+		colorRect(0, 0, canvas.width, canvas.height, '#181D20');
+
+		if(showingWinScreen){
+			canvasContext.fillStyle = "white";
+			canvasContext.font = font;
+			
+			if(userScore >= WINNING_SCORE) {
+				// canvasContext.fillText('You won! ' +userScore+':'+computerScore, 270, 250);
+				document.getElementById('countdown').innerHTML = 'You won '+userScore+' : '+computerScore+ ' - Click to start new game';
+			}else if(computerScore >= WINNING_SCORE) {
+				// canvasContext.fillText('You lost :(', 350, 250);
+				document.getElementById('countdown').innerHTML = 'You lost '+userScore+' : '+computerScore+ ' - Click to start new game';
+			}
+			canvasContext.fillStyle = "white";
+			return;
+		}
+		drawNet()
+		//draw left player paddle
+		colorRect(PADDLE_PADDING, userPaddle, PADDLE_THICKNESS, PADDLE_HEIGHT, "white");
+		//draw right COMPUTER paddle
+		colorRect(canvas.width-PADDLE_PADDING-PADDLE_THICKNESS, computerPaddle, PADDLE_THICKNESS, PADDLE_HEIGHT, "white");
+		//draw the ball
+		colorCircle(ballX, ballY, ballRadius, 'white');
+		//draw the score text on screen
+		canvasContext.font = font;
+		document.getElementById('countdown').innerHTML = userScore + " " + ":" + " " + computerScore;
+
+	}
+
+	function colorCircle(centerX, centerY, ballRadius, color){
+		canvasContext.fillStyle = color;
+		canvasContext.beginPath();
+		canvasContext.arc(centerX, centerY, ballRadius, 0, Math.PI*2, true);
+		canvasContext.fill();
+	}
+
+	function colorRect(leftX, topY, width, height, drowColor) {
+		canvasContext.fillStyle = drowColor;
+		canvasContext.fillRect(leftX, topY, width, height);
+	}
+
+	</script>
+	</div>
+</body>
+</html>

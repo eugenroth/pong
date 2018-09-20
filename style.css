@@ -1,0 +1,53 @@
+body {
+	font-family: 'ARCADE', cursive;
+	color: #c3c3c3;
+	background-color: #181D20;
+}
+
+.title p {
+	font-size: 100px;
+	text-align: center;
+	margin: 0;
+}
+
+.content {
+	width: 800px;
+	margin: auto;
+	border: 8px solid grey;
+	/*padding: 10px;*/
+}
+
+.gameinfo {
+	font-size: 20px;
+	text-align: center;
+	font-family: 'Arial';
+}
+
+.hlight {
+	font-weight: bold;
+}
+
+@font-face { 
+	font-family: "ARCADE"; 
+	src: url("ARCADE.TTF"); 
+}
+
+.countdown {
+	font-size: 20px;
+	text-align: center;
+	font-family: 'Arial';
+	color: #c3c3c3;
+}
+
+ul {
+	padding: 0;
+	text-align: center;
+}
+
+li {
+	display: inline;
+	font-size: 14px;
+	font-family: 'Arial';
+	padding: 10px;
+	list-style: none;
+}
