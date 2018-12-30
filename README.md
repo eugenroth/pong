@@ -1,2 +1,2 @@
 # pong
-A tutorial based web-version of Pong using JavaScript
+web version of Pong based on JavaScript
